@@ -1,0 +1,51 @@
+# Git and version control
+.git
+.gitignore
+README.md
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+env/
+venv/
+.env
+.venv
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development files
+tests/
+test_*.py
+*_test.py
+validate_*.py
+.claude/
+
+# Temporary files
+tmp*
+temp*
+tmpclaude-*
+nul
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker/
+
+# Documentation
+*.md
+docs/
