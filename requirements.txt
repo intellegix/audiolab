@@ -1,0 +1,98 @@
+# AudioLab Python Dependencies
+# Core audio processing and AI stem separation suite
+
+# ============================================================================
+# WEB FRAMEWORK & API
+# ============================================================================
+fastapi[all]==0.104.1          # Async web framework with WebSocket support
+uvicorn[standard]==0.24.0       # ASGI server for FastAPI
+websockets==12.0                # WebSocket support
+python-multipart==0.0.6        # File upload support
+
+# ============================================================================
+# AI STEM SEPARATION
+# ============================================================================
+demucs==4.1.0                   # Meta's Demucs v4 for AI stem separation
+torch>=1.11.0                   # PyTorch for deep learning
+torchaudio>=0.11.0              # Audio processing with PyTorch
+librosa>=0.10.1                 # Advanced audio analysis and processing
+onnx>=1.14.0                    # ONNX support for optimized inference
+onnxruntime-gpu>=1.16.0         # GPU accelerated ONNX runtime
+
+# ============================================================================
+# AUDIO PROCESSING
+# ============================================================================
+soundfile>=0.12.1               # High-performance audio I/O
+pyaudio>=0.2.11                 # Real-time audio streaming
+pydub>=0.25.1                   # Simple audio manipulation
+pyloudnorm>=0.1.1               # Loudness normalization for mastering
+scipy>=1.11.4                   # Scientific computing for DSP
+numpy>=1.24.3                   # Numerical operations
+
+# ============================================================================
+# DATABASE & ORM
+# ============================================================================
+sqlalchemy[asyncio]==2.0.23     # Async ORM with PostgreSQL support
+asyncpg==0.29.0                 # Async PostgreSQL driver
+alembic==1.12.1                 # Database migrations
+redis[hiredis]==5.0.1           # Redis client with performance optimizations
+
+# ============================================================================
+# DATA VALIDATION & SERIALIZATION
+# ============================================================================
+pydantic[email]==2.5.0          # Data validation with type hints
+pydantic-settings==2.1.0        # Settings management
+
+# ============================================================================
+# AUTHENTICATION & SECURITY
+# ============================================================================
+passlib[bcrypt]==1.7.4          # Password hashing
+python-jose[cryptography]==3.3.0 # JWT token handling
+python-multipart==0.0.6        # Form data parsing
+
+# ============================================================================
+# TESTING
+# ============================================================================
+pytest==7.4.3                  # Testing framework
+pytest-asyncio==0.21.1         # Async testing support
+pytest-cov==4.1.0              # Coverage reporting
+httpx==0.25.2                  # Async HTTP client for testing
+
+# ============================================================================
+# DEVELOPMENT TOOLS
+# ============================================================================
+black==23.11.0                 # Code formatting
+isort==5.12.0                  # Import sorting
+mypy==1.7.1                    # Static type checking
+flake8==6.1.0                  # Linting
+pre-commit==3.5.0              # Git hooks for code quality
+
+# ============================================================================
+# MONITORING & LOGGING
+# ============================================================================
+structlog==23.2.0              # Structured logging
+python-dotenv==1.0.0           # Environment variable loading
+rich==13.7.0                   # Rich text and beautiful formatting
+
+# ============================================================================
+# UTILITIES
+# ============================================================================
+python-dateutil>=2.8.2         # Date/time utilities
+pathlib2>=2.3.7                # Enhanced path handling (Python 3.4+ backport)
+click>=8.1.7                   # Command-line interface creation
+tqdm>=4.66.1                   # Progress bars
+
+# ============================================================================
+# OPTIONAL: ADVANCED AUDIO FEATURES
+# ============================================================================
+# essentia==2.1b6               # Advanced audio analysis (optional)
+# madmom>=0.16.1                # Music information retrieval (optional)
+# aubio>=0.4.9                  # Audio analysis library (optional)
+
+# ============================================================================
+# DEVELOPMENT DEPENDENCIES (install with: pip install -r requirements-dev.txt)
+# ============================================================================
+# jupyter>=1.0.0                # Jupyter notebooks for development
+# ipython>=8.17.2               # Enhanced Python REPL
+# memory-profiler>=0.61.0       # Memory usage profiling
+# line-profiler>=4.1.1          # Line-by-line performance profiling
