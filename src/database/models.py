@@ -67,6 +67,12 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="Track.track_index"
     )
+    loop_regions: Mapped[List["LoopRegion"]] = relationship(
+        "LoopRegion",
+        foreign_keys="LoopRegion.project_id",
+        cascade="all, delete-orphan",
+        order_by="LoopRegion.start_time"
+    )
 
     def __repr__(self) -> str:
         return f"<Project(id={self.id}, name='{self.name}', sample_rate={self.sample_rate})>"
@@ -104,6 +110,11 @@ class Track(Base):
     # Visual
     color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # Hex color code
 
+    # Recording settings
+    record_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    input_device_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP,
@@ -125,6 +136,12 @@ class Track(Base):
         cascade="all, delete-orphan",
         primaryjoin="Track.id == Effect.track_id",
         order_by="Effect.order_index"
+    )
+    recording_sessions: Mapped[List["RecordingSession"]] = relationship(
+        "RecordingSession",
+        foreign_keys="RecordingSession.track_id",
+        cascade="all, delete-orphan",
+        order_by="RecordingSession.created_at"
     )
 
     def __repr__(self) -> str:
@@ -297,6 +314,123 @@ class StemSeparation(Base):
         return f"<StemSeparation(id={self.id}, model='{self.model_used}', clip_id={self.clip_id})>"
 
 
+class RecordingSession(Base):
+    """Recording session model - manages real-time recording state"""
+    __tablename__ = "recording_sessions"
+
+    # Primary key
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid()
+    )
+
+    # Foreign key to track
+    track_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tracks.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Recording parameters
+    input_device_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    start_time: Mapped[Decimal] = mapped_column(DECIMAL(10, 6), nullable=False)  # Timeline position in seconds
+    duration: Mapped[Optional[Decimal]] = mapped_column(DECIMAL(10, 6), nullable=True)  # Duration in seconds
+
+    # Session status: recording, stopped, saved, error
+    status: Mapped[str] = mapped_column(String(20), default="recording", nullable=False)
+
+    # Audio parameters captured during recording
+    sample_rate: Mapped[int] = mapped_column(Integer, default=48000, nullable=False)
+    channels: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # 1=mono, 2=stereo
+    bit_depth: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
+
+    # File path where recorded audio is being saved
+    temp_file_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    final_clip_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("clips.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # Metadata
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        nullable=False,
+        server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+
+    # Relationships
+    track: Mapped["Track"] = relationship("Track", foreign_keys=[track_id])
+    final_clip: Mapped[Optional["Clip"]] = relationship("Clip", foreign_keys=[final_clip_id])
+
+    def __repr__(self) -> str:
+        return f"<RecordingSession(id={self.id}, track_id={self.track_id}, status='{self.status}')>"
+
+
+class LoopRegion(Base):
+    """Loop region model - defines timeline regions for looping playback"""
+    __tablename__ = "loop_regions"
+
+    # Primary key
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid()
+    )
+
+    # Foreign key to project
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Loop region parameters
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="Loop Region")
+    start_time: Mapped[Decimal] = mapped_column(DECIMAL(10, 6), nullable=False)  # Start position in seconds
+    end_time: Mapped[Decimal] = mapped_column(DECIMAL(10, 6), nullable=False)    # End position in seconds
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Loop behavior
+    repeat_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # None = infinite loops
+    auto_punch_record: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # Auto record in loop
+
+    # Visual and organization
+    color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # Hex color code
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        nullable=False,
+        server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+
+    # Relationships
+    project: Mapped["Project"] = relationship("Project", foreign_keys=[project_id])
+
+    def __repr__(self) -> str:
+        return f"<LoopRegion(id={self.id}, name='{self.name}', start={self.start_time}, end={self.end_time})>"
+
+
 # Additional indexes for performance
 Index("ix_projects_user_id", Project.user_id)
 Index("ix_projects_created_at", Project.created_at)
@@ -305,3 +439,7 @@ Index("ix_tracks_project_index", Track.project_id, Track.track_index)
 Index("ix_clips_track_id", Clip.track_id)
 Index("ix_clips_timeline", Clip.track_id, Clip.start_time)
 Index("ix_stem_separations_clip_id", StemSeparation.clip_id)
+Index("ix_recording_sessions_track_id", RecordingSession.track_id)
+Index("ix_recording_sessions_status", RecordingSession.status)
+Index("ix_loop_regions_project_id", LoopRegion.project_id)
+Index("ix_loop_regions_timeline", LoopRegion.project_id, LoopRegion.start_time, LoopRegion.end_time)

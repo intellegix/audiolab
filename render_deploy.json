@@ -1,0 +1,25 @@
+{
+  "type": "web_service",
+  "name": "audiolab-api",
+  "repo": "https://github.com/intellegix/audiolab",
+  "branch": "master",
+  "buildCommand": "pip install -r requirements.txt",
+  "startCommand": "uvicorn src.main:app --host 0.0.0.0 --port $PORT --workers 4",
+  "plan": "standard",
+  "region": "oregon",
+  "healthCheckPath": "/health",
+  "envVars": [
+    {
+      "key": "ENVIRONMENT",
+      "value": "production"
+    },
+    {
+      "key": "CORS_ORIGINS",
+      "value": "*"
+    },
+    {
+      "key": "AUDIO_OUTPUT_PATH",
+      "value": "/tmp/audiolab/output"
+    }
+  ]
+}

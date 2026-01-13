@@ -3,7 +3,14 @@ services:
     name: audiolab-api
     env: python
     plan: standard
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      apt-get update && apt-get install -y \
+        libasound2-dev \
+        libportaudio2 \
+        libportaudiocpp0 \
+        ffmpeg \
+        && pip install -r requirements.txt \
+        && python -m alembic upgrade head
     startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT --workers 4
     envVars:
       - key: ENVIRONMENT
@@ -23,6 +30,12 @@ services:
         value: "*"
       - key: AUDIO_OUTPUT_PATH
         value: /tmp/audiolab/output
+      - key: AUDIOLAB_CLOUD_MODE
+        value: "true"
+      - key: AUDIOLAB_MOCK_AUDIO
+        value: "true"
+      - key: DEMUCS_DEFAULT_MODEL
+        value: "htdemucs_ft"
     healthCheckPath: /health
     domains:
       - audiolab-api.onrender.com

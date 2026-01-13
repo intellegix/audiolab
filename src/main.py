@@ -36,24 +36,46 @@ async def lifespan(app: FastAPI):
     logger.info("Starting AudioLab backend server...")
 
     try:
+        # Detect environment and capabilities
+        from core.environment import get_environment_detector
+        env_detector = get_environment_detector()
+        env_info = env_detector.get_environment_info()
+        logger.info(f"Environment detected: {env_info}")
+
         # Initialize database connections
         await database_manager.initialize()
         logger.info("Database connections initialized")
 
-        # Initialize audio processing engine
+        # Initialize audio processing engine based on environment
         from core.audio_engine import audio_engine
-        await audio_engine.initialize(
-            sample_rate=settings.DEFAULT_SAMPLE_RATE,
-            buffer_size=settings.DEFAULT_BUFFER_SIZE,
-            channels=2
-        )
-        logger.info(f"Audio engine initialized: {settings.DEFAULT_SAMPLE_RATE}Hz, {settings.DEFAULT_BUFFER_SIZE} samples")
+        audio_config = env_detector.get_recommended_audio_config()
+
+        try:
+            await audio_engine.initialize(
+                sample_rate=audio_config["sample_rate"],
+                buffer_size=audio_config["buffer_size"],
+                channels=audio_config["channels"]
+            )
+            logger.info(f"Audio engine initialized: {audio_config['sample_rate']}Hz, {audio_config['buffer_size']} samples")
+        except Exception as audio_error:
+            logger.warning(f"Audio engine initialization failed (continuing in processing-only mode): {audio_error}")
 
         # Load AI models
         from services.demucs_service import DemucsService
         demucs_service = DemucsService()
         await demucs_service.load_model(settings.DEMUCS_DEFAULT_MODEL)
         logger.info(f"Demucs model loaded: {settings.DEMUCS_DEFAULT_MODEL}")
+
+        # Initialize WebSocket callbacks for real-time updates
+        from api.websocket import initialize_websocket_callbacks
+        await initialize_websocket_callbacks()
+        logger.info("WebSocket real-time callbacks initialized")
+
+        # Initialize overdubbing services based on environment
+        if env_detector.has_real_audio_hardware():
+            logger.info("Real-time recording capabilities enabled (desktop environment)")
+        else:
+            logger.info("Mock recording capabilities enabled (cloud/container environment)")
 
         logger.info("AudioLab backend started successfully")
 
@@ -67,6 +89,11 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down AudioLab backend...")
 
     try:
+        # Cleanup WebSocket connections
+        from api.websocket import cleanup_websocket_connections
+        await cleanup_websocket_connections()
+        logger.info("WebSocket connections cleaned up")
+
         # Stop audio processing
         await audio_engine.stop()
         logger.info("Audio engine stopped")
@@ -127,12 +154,24 @@ async def health_check() -> Dict[str, Any]:
         from core.audio_engine import audio_engine
         audio_status = audio_engine.is_initialized()
 
+        # Get environment information
+        from core.environment import get_environment_detector
+        env_detector = get_environment_detector()
+
         return {
             "status": "healthy",
             "version": "0.1.0",
+            "environment": {
+                "type": env_detector.get_environment_type().value,
+                "audio_capability": env_detector.get_audio_capability().value,
+                "is_cloud_deployment": env_detector.is_cloud_deployment(),
+                "has_audio_hardware": env_detector.has_real_audio_hardware()
+            },
             "services": {
                 "database": "healthy" if db_status else "unhealthy",
-                "audio_engine": "healthy" if audio_status else "unhealthy"
+                "audio_engine": "healthy" if audio_status else "unhealthy",
+                "recording_system": "mock" if env_detector.should_use_mock_audio() else "real",
+                "overdubbing_capable": env_detector.can_process_audio_files()
             }
         }
     except Exception as e:
