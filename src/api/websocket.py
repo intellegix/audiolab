@@ -271,6 +271,44 @@ class ConnectionManager:
 
         return loop_callback
 
+    async def send_beat_generation_progress(
+        self,
+        connection_id: str,
+        progress_event: 'BeatGenerationProgressEvent'
+    ):
+        """Send beat generation progress update"""
+        message = {
+            "type": "beat_generation_progress",
+            "data": {
+                "request_id": str(progress_event.request_id),
+                "status": progress_event.status,
+                "progress": float(progress_event.progress),
+                "current_stage": progress_event.current_stage,
+                "estimated_time_remaining": progress_event.estimated_time_remaining,
+                "error_message": progress_event.error_message,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+        }
+        await self.send_message(connection_id, message)
+
+    def create_beat_generation_callback(self, connection_id: str, request_id: str):
+        """Create a progress callback function for beat generation service"""
+        async def beat_progress_callback(progress: float, stage: str):
+            # Import here to avoid circular imports
+            from ..database.schemas import BeatGenerationProgressEvent
+            from decimal import Decimal
+            import uuid
+
+            progress_event = BeatGenerationProgressEvent(
+                request_id=uuid.UUID(request_id) if isinstance(request_id, str) else request_id,
+                status="processing",
+                progress=Decimal(str(progress * 100)),
+                current_stage=stage
+            )
+            await self.send_beat_generation_progress(connection_id, progress_event)
+
+        return beat_progress_callback
+
 
 class AudioStreamHandler:
     """Handles real-time audio streaming via WebSocket"""

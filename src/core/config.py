@@ -64,9 +64,49 @@ class AudioLabSettings(BaseSettings):
     ]
 
     # ============================================================================
+    # BEAT GENERATION SETTINGS
+    # ============================================================================
+    # MusicGen settings
+    MUSICGEN_MODEL_PATH: str = Field(default="./models/musicgen/", env="MUSICGEN_MODEL_PATH")
+    MUSICGEN_DEFAULT_MODEL: str = Field(default="facebook/musicgen-small", env="MUSICGEN_DEFAULT_MODEL")
+    MUSICGEN_USE_GPU: bool = Field(default=True, env="MUSICGEN_USE_GPU")
+    MUSICGEN_MAX_MEMORY_GB: float = Field(default=6.0, env="MUSICGEN_MAX_MEMORY_GB")
+    MUSICGEN_MODELS_AVAILABLE: List[str] = [
+        "facebook/musicgen-small",     # 300M params, fast, 1.5GB memory
+        "facebook/musicgen-medium",    # 1.5B params, balanced, 3GB memory
+        "facebook/musicgen-large",     # 3.3B params, best quality, 6GB memory
+        "facebook/musicgen-melody"     # Melody-conditioned model, 3GB memory
+    ]
+
+    # SOUNDRAW API settings
+    SOUNDRAW_API_KEY: Optional[str] = Field(default=None, env="SOUNDRAW_API_KEY")
+    SOUNDRAW_API_TIMEOUT: float = Field(default=300.0, env="SOUNDRAW_API_TIMEOUT")  # 5 minutes
+    SOUNDRAW_MAX_DURATION: float = Field(default=300.0, env="SOUNDRAW_MAX_DURATION")  # 5 minutes
+
+    # Beat generation limits
+    BEAT_GENERATION_MAX_CONCURRENT: int = Field(default=2, env="BEAT_GENERATION_MAX_CONCURRENT")
+    BEAT_GENERATION_MAX_DURATION: float = Field(default=30.0, env="BEAT_GENERATION_MAX_DURATION")  # seconds
+    BEAT_GENERATION_DEFAULT_DURATION: float = Field(default=8.0, env="BEAT_GENERATION_DEFAULT_DURATION")
+    BEAT_GENERATION_TIMEOUT: float = Field(default=600.0, env="BEAT_GENERATION_TIMEOUT")  # 10 minutes
+
+    # Beat file storage
+    BEATS_PATH: str = Field(default="./audiolab_data/beats", env="BEATS_PATH")
+    MIDI_PATH: str = Field(default="./audiolab_data/midi", env="MIDI_PATH")
+
+    # Beat template settings
+    BEAT_TEMPLATES_ENABLED: bool = Field(default=True, env="BEAT_TEMPLATES_ENABLED")
+    BEAT_TEMPLATES_PRELOAD: bool = Field(default=True, env="BEAT_TEMPLATES_PRELOAD")
+
+    # Quality and processing settings
+    BEAT_QUALITY_THRESHOLD: float = Field(default=6.0, env="BEAT_QUALITY_THRESHOLD")  # 0-10 scale
+    BEAT_AUTO_TEMPO_SYNC: bool = Field(default=True, env="BEAT_AUTO_TEMPO_SYNC")
+    BEAT_AUTO_MIDI_EXPORT: bool = Field(default=True, env="BEAT_AUTO_MIDI_EXPORT")
+
+    # ============================================================================
     # FILE STORAGE SETTINGS
     # ============================================================================
     AUDIO_FILES_PATH: str = Field(default="./audiolab_data/audio", env="AUDIO_FILES_PATH")
+    AUDIO_OUTPUT_PATH: str = Field(default="./audiolab_data/audio", env="AUDIO_OUTPUT_PATH")
     PROJECTS_PATH: str = Field(default="./audiolab_data/projects", env="PROJECTS_PATH")
     EXPORTS_PATH: str = Field(default="./audiolab_data/exports", env="EXPORTS_PATH")
     TEMP_PATH: str = Field(default="./audiolab_data/temp", env="TEMP_PATH")
@@ -165,6 +205,9 @@ class AudioLabSettings(BaseSettings):
             self.EXPORTS_PATH,
             self.TEMP_PATH,
             self.DEMUCS_MODEL_PATH,
+            self.MUSICGEN_MODEL_PATH,
+            self.BEATS_PATH,
+            self.MIDI_PATH,
             Path(self.LOG_FILE_PATH).parent,
         ]
 
@@ -214,6 +257,46 @@ class AudioLabSettings(BaseSettings):
             "lufs_targets": self.LUFS_TARGETS,
             "supported_formats": self.SUPPORTED_EXPORT_FORMATS,
             "supported_qualities": self.SUPPORTED_EXPORT_QUALITIES,
+        }
+
+    def get_beat_generation_config(self) -> dict:
+        """Get beat generation configuration dictionary"""
+        return {
+            # MusicGen configuration
+            "musicgen": {
+                "model_path": self.MUSICGEN_MODEL_PATH,
+                "default_model": self.MUSICGEN_DEFAULT_MODEL,
+                "use_gpu": self.MUSICGEN_USE_GPU,
+                "max_memory_gb": self.MUSICGEN_MAX_MEMORY_GB,
+                "available_models": self.MUSICGEN_MODELS_AVAILABLE
+            },
+            # SOUNDRAW configuration
+            "soundraw": {
+                "api_key": self.SOUNDRAW_API_KEY,
+                "api_timeout": self.SOUNDRAW_API_TIMEOUT,
+                "max_duration": self.SOUNDRAW_MAX_DURATION,
+                "enabled": self.SOUNDRAW_API_KEY is not None
+            },
+            # General beat generation settings
+            "limits": {
+                "max_concurrent": self.BEAT_GENERATION_MAX_CONCURRENT,
+                "max_duration": self.BEAT_GENERATION_MAX_DURATION,
+                "default_duration": self.BEAT_GENERATION_DEFAULT_DURATION,
+                "timeout": self.BEAT_GENERATION_TIMEOUT
+            },
+            # Storage paths
+            "storage": {
+                "beats_path": self.BEATS_PATH,
+                "midi_path": self.MIDI_PATH
+            },
+            # Quality and features
+            "features": {
+                "quality_threshold": self.BEAT_QUALITY_THRESHOLD,
+                "auto_tempo_sync": self.BEAT_AUTO_TEMPO_SYNC,
+                "auto_midi_export": self.BEAT_AUTO_MIDI_EXPORT,
+                "templates_enabled": self.BEAT_TEMPLATES_ENABLED,
+                "templates_preload": self.BEAT_TEMPLATES_PRELOAD
+            }
         }
 
     def validate_sample_rate(self, sample_rate: int) -> bool:

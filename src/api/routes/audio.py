@@ -6,6 +6,7 @@ Includes real-time recording and playback capabilities for overdubbing
 
 from typing import List, Optional
 import uuid
+import asyncio
 from decimal import Decimal
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
@@ -772,3 +773,864 @@ async def set_track_solo(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ADVANCED SEPARATION ENDPOINTS
+# Enhanced stem separation with rhythm/lead guitar distinction and quality enhancement
+# ============================================================================
+
+@router.post("/clips/{clip_id}/separate/advanced", response_model=dict)
+async def separate_clip_advanced(
+    clip_id: uuid.UUID,
+    request: dict,
+    background_tasks: BackgroundTasks,
+    connection_id: Optional[str] = Query(None, description="WebSocket connection ID for progress updates")
+):
+    """
+    Advanced audio separation with individual instrument targeting
+
+    Performs enhanced stem separation that can distinguish between rhythm and lead guitar,
+    and provides better quality isolation of individual instruments. Supports the following
+    instruments: vocals, rhythm_guitar, lead_guitar, drums, bass, piano, other.
+
+    Example request body:
+    {
+        "instruments": ["vocals", "rhythm_guitar", "lead_guitar"],
+        "model": "htdemucs_6s",
+        "enhancement_options": {
+            "quality_level": "high",
+            "preview_mode": false
+        }
+    }
+    """
+    try:
+        from ...services.advanced_separation_service import AdvancedSeparationService
+        from ...database.schemas import AdvancedSeparationRequest
+
+        # Validate request
+        separation_request = AdvancedSeparationRequest(**request)
+
+        # Create job for tracking
+        job_id = uuid.uuid4()
+        estimated_duration = len(separation_request.instruments) * 60  # Rough estimate: 1 minute per instrument
+
+        # Start processing in background
+        advanced_service = AdvancedSeparationService()
+
+        if connection_id:
+            def progress_callback(progress: float, message: str):
+                # This will be called by the separation service
+                pass
+            advanced_service.set_progress_callback(progress_callback)
+
+        # For now, return job creation response
+        # In production, this would trigger background processing
+        return {
+            "job_id": str(job_id),
+            "estimated_duration": estimated_duration,
+            "status": "pending",
+            "message": f"Advanced separation queued for {len(separation_request.instruments)} instruments",
+            "target_instruments": separation_request.instruments
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Advanced separation failed: {str(e)}")
+
+
+@router.get("/jobs/{job_id}/status")
+async def get_processing_job_status(job_id: uuid.UUID):
+    """
+    Get status of a processing job
+
+    Returns current status, progress, and results for long-running audio processing jobs
+    such as advanced separation or enhancement operations.
+    """
+    try:
+        # TODO: Implement job status tracking with database
+        # For now, return mock response
+        return {
+            "job_id": str(job_id),
+            "status": "processing",
+            "progress": 65.0,
+            "current_stage": "Separating rhythm and lead guitar",
+            "estimated_remaining": 45,
+            "message": "Processing guitar classification..."
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
+
+
+@router.post("/clips/{clip_id}/enhance", response_model=dict)
+async def enhance_clip_stems(
+    clip_id: uuid.UUID,
+    request: dict,
+    connection_id: Optional[str] = Query(None, description="WebSocket connection ID for progress updates")
+):
+    """
+    Enhance audio quality of separated stems
+
+    Applies AI-powered quality enhancement to individual stems including:
+    - Noise reduction and denoising
+    - Clarity and presence enhancement
+    - AI upsampling for higher quality
+    - Dynamic range optimization
+
+    Example request body:
+    {
+        "stems": ["vocals", "lead_guitar"],
+        "enhancements": ["denoise", "clarity", "upsampl"],
+        "level": 0.8,
+        "profile_id": "optional-enhancement-profile-uuid"
+    }
+    """
+    try:
+        from ...database.schemas import EnhancementRequest
+
+        # Validate request
+        enhancement_request = EnhancementRequest(**request)
+
+        # TODO: Implement audio enhancement service
+        # For now, return mock response
+        return {
+            "enhanced_stems": {
+                stem: {
+                    "file_path": f"/enhanced/{clip_id}_{stem}_enhanced.wav",
+                    "quality_score": 8.5 + (enhancement_request.level * 1.5),
+                    "enhancements_applied": enhancement_request.enhancements,
+                    "file_size": "2.1 MB"
+                } for stem in enhancement_request.stems
+            },
+            "processing_time": 15.2,
+            "quality_improvements": {
+                stem: enhancement_request.level * 2.5 for stem in enhancement_request.stems
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Enhancement failed: {str(e)}")
+
+
+@router.post("/clips/{clip_id}/enhance/preview", response_model=dict)
+async def preview_enhancement(
+    clip_id: uuid.UUID,
+    request: dict
+):
+    """
+    Generate a preview of audio enhancement
+
+    Creates a short preview (typically 30 seconds) of the enhanced audio to allow
+    users to test enhancement settings before applying to the full track.
+
+    Example request body:
+    {
+        "stem": "vocals",
+        "enhancement": "clarity",
+        "level": 0.5,
+        "preview_duration": 30
+    }
+    """
+    try:
+        from ...database.schemas import EnhancementPreviewRequest
+
+        # Validate request
+        preview_request = EnhancementPreviewRequest(**request)
+
+        # TODO: Implement enhancement preview generation
+        # For now, return mock response
+        return {
+            "preview_url": f"/api/audio/preview/{clip_id}_{preview_request.stem}_{preview_request.enhancement}.wav",
+            "duration": preview_request.preview_duration,
+            "quality_preview": {
+                "clarity_improvement": preview_request.level * 1.8,
+                "noise_reduction": preview_request.level * 2.1,
+                "overall_enhancement": preview_request.level * 2.0
+            },
+            "expires_at": "2024-01-12T16:30:00Z"  # Preview expires in 1 hour
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
+
+
+@router.get("/clips/{clip_id}/quality-analysis", response_model=dict)
+async def analyze_clip_quality(
+    clip_id: uuid.UUID,
+    include_stems: bool = Query(True, description="Include per-stem analysis"),
+    detailed_metrics: bool = Query(False, description="Include detailed quality metrics")
+):
+    """
+    Analyze audio quality of clip and its stems
+
+    Provides comprehensive quality analysis including:
+    - Overall quality score (0-10)
+    - Per-stem quality metrics
+    - Dynamic range analysis
+    - Signal-to-noise ratio
+    - Spectral characteristics
+    """
+    try:
+        # TODO: Implement real quality analysis
+        # For now, return mock response
+        base_response = {
+            "overall_score": 7.8,
+            "analysis_metadata": {
+                "analyzed_at": "2024-01-12T15:30:00Z",
+                "analysis_duration": 2.1,
+                "algorithm_version": "1.0"
+            }
+        }
+
+        if include_stems:
+            base_response["stems"] = {
+                "vocals": {
+                    "clarity": 8.2,
+                    "noise_level": 0.15,
+                    "dynamic_range": 9.1,
+                    "frequency_response": 8.5
+                },
+                "guitar": {
+                    "clarity": 7.8,
+                    "noise_level": 0.22,
+                    "dynamic_range": 8.3,
+                    "frequency_response": 7.9
+                },
+                "drums": {
+                    "clarity": 8.7,
+                    "noise_level": 0.08,
+                    "dynamic_range": 9.8,
+                    "frequency_response": 9.2
+                }
+            }
+
+        if detailed_metrics:
+            base_response["detailed_metrics"] = {
+                "peak_amplitude": -2.1,
+                "rms_level": -18.4,
+                "lufs_integrated": -16.2,
+                "peak_to_loudness_ratio": 14.1,
+                "stereo_width": 0.75,
+                "phase_correlation": 0.92
+            }
+
+        return base_response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Quality analysis failed: {str(e)}")
+
+
+@router.get("/models/enhancement", response_model=dict)
+async def get_enhancement_models():
+    """
+    Get available enhancement models and capabilities
+
+    Returns information about available AI models for audio quality enhancement
+    including their capabilities, supported enhancement types, and performance characteristics.
+    """
+    try:
+        return {
+            "available": [
+                {
+                    "name": "real_esrgan",
+                    "type": "upsampling",
+                    "description": "Neural upsampling for higher sample rates and bit depths",
+                    "supported_formats": ["wav", "flac"],
+                    "max_upsampling": "4x",
+                    "processing_time_factor": 0.3
+                },
+                {
+                    "name": "spectral_denoiser",
+                    "type": "denoising",
+                    "description": "AI-powered spectral noise reduction",
+                    "noise_reduction_range": "up to 40dB",
+                    "preserves_transients": True,
+                    "processing_time_factor": 0.2
+                },
+                {
+                    "name": "mastering_chain",
+                    "type": "mastering",
+                    "description": "AI-based mastering with EQ, compression, and limiting",
+                    "target_lufs": [-23, -16, -14, -8],
+                    "auto_eq": True,
+                    "processing_time_factor": 0.1
+                }
+            ],
+            "default_model": "mastering_chain",
+            "performance_notes": {
+                "cpu_usage": "Medium to High depending on model",
+                "memory_requirement": "2-4GB for typical audio files",
+                "gpu_acceleration": "Supported for real_esrgan model"
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get enhancement models: {str(e)}")
+
+
+# ============================================================================
+# ENHANCEMENT PROFILE ENDPOINTS
+# User enhancement presets and preferences
+# ============================================================================
+
+@router.get("/enhancement-profiles", response_model=List[dict])
+async def get_enhancement_profiles(
+    user_id: uuid.UUID = Query(..., description="User ID to get profiles for"),
+    include_public: bool = Query(True, description="Include public profiles")
+):
+    """Get user's enhancement profiles and optionally public profiles"""
+    try:
+        # TODO: Implement database query for enhancement profiles
+        # For now, return mock response
+        profiles = [
+            {
+                "id": str(uuid.uuid4()),
+                "profile_name": "Vocal Enhancement",
+                "description": "Optimized for vocal clarity and presence",
+                "is_default": True,
+                "is_public": False,
+                "enhancement_settings": {
+                    "vocals": {
+                        "denoise": 0.7,
+                        "clarity": 0.8,
+                        "presence": 0.6
+                    }
+                },
+                "usage_count": 45,
+                "created_at": "2024-01-10T10:00:00Z"
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "profile_name": "Guitar Enhancement",
+                "description": "Enhances guitar separation and tone",
+                "is_default": False,
+                "is_public": True,
+                "enhancement_settings": {
+                    "rhythm_guitar": {
+                        "eq": {"low": 0.1, "mid": 0.3, "high": 0.2},
+                        "compression": 0.4
+                    },
+                    "lead_guitar": {
+                        "clarity": 0.9,
+                        "presence": 0.8,
+                        "eq": {"low": 0.0, "mid": 0.5, "high": 0.6}
+                    }
+                },
+                "usage_count": 23,
+                "created_at": "2024-01-09T14:30:00Z"
+            }
+        ]
+
+        return profiles
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get enhancement profiles: {str(e)}")
+
+
+@router.post("/enhancement-profiles", response_model=dict)
+async def create_enhancement_profile(request: dict):
+    """Create a new enhancement profile"""
+    try:
+        from ...database.schemas import EnhancementProfileCreate
+
+        # Validate request
+        profile_request = EnhancementProfileCreate(**request)
+
+        # TODO: Implement database creation
+        # For now, return mock response
+        profile_id = uuid.uuid4()
+
+        return {
+            "id": str(profile_id),
+            "profile_name": profile_request.profile_name,
+            "description": profile_request.description,
+            "created_at": "2024-01-12T15:30:00Z",
+            "message": "Enhancement profile created successfully"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create enhancement profile: {str(e)}")
+
+
+# ============================================================================
+# BEAT GENERATION ENDPOINTS
+# ============================================================================
+
+# Import beat generation schemas
+from ...database.schemas import (
+    BeatGenerationRequest as BeatGenerationRequestSchema,
+    BeatGenerationUpdate,
+    BeatGenerationResponse,
+    BeatGenerationJobResponse,
+    BeatToProjectRequest,
+    BeatToProjectResponse,
+    BeatTemplateResponse,
+    BeatVariationResponse,
+    BeatGenerationProgressEvent
+)
+
+
+@router.post("/beats/generate", response_model=BeatGenerationJobResponse)
+async def generate_beat(
+    request: BeatGenerationRequestSchema,
+    background_tasks: BackgroundTasks,
+    connection_id: Optional[str] = Query(None, description="WebSocket connection ID for progress updates")
+):
+    """
+    Generate AI beat with real-time progress updates
+
+    Supports both MusicGen (local) and SOUNDRAW (API) providers.
+    Processing runs in background with WebSocket progress updates.
+    Beats are automatically synchronized to project tempo and time signature.
+    """
+    try:
+        # Import services here to avoid circular imports
+        from ...services.beat_generation_service import BeatGenerationService
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...core.config import get_settings
+
+        settings = get_settings()
+
+        # Validate provider availability
+        beat_config = settings.get_beat_generation_config()
+        if request.provider == "soundraw" and not beat_config["soundraw"]["enabled"]:
+            raise HTTPException(
+                status_code=400,
+                detail="SOUNDRAW provider not configured. Set SOUNDRAW_API_KEY environment variable."
+            )
+
+        # Validate duration limits
+        max_duration = beat_config["limits"]["max_duration"]
+        if request.duration > max_duration:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Duration {request.duration}s exceeds maximum {max_duration}s"
+            )
+
+        # TODO: Get user_id from authentication
+        user_id = uuid.uuid4()  # Placeholder
+
+        # Create database repository (would come from dependency injection in production)
+        from ...database.connection import get_session
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        # Create beat generation request in database
+        db_result = await repo.create_beat_generation_request(request, user_id)
+        if not db_result.success:
+            raise HTTPException(status_code=400, detail=db_result.error)
+
+        beat_request = db_result.data
+
+        # Start background generation task
+        background_tasks.add_task(
+            _process_beat_generation,
+            beat_request.id,
+            request.provider,
+            connection_id
+        )
+
+        # Estimate duration based on provider and model
+        estimated_duration = _estimate_generation_duration(request.provider, request.duration)
+
+        return BeatGenerationJobResponse(
+            request_id=beat_request.id,
+            estimated_duration=estimated_duration,
+            status="pending"
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start beat generation: {str(e)}")
+
+
+@router.get("/beats/{request_id}/status", response_model=BeatGenerationResponse)
+async def get_beat_generation_status(request_id: uuid.UUID):
+    """Get beat generation progress and results"""
+    try:
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...database.connection import get_session
+
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        result = await repo.get_beat_generation_request(request_id)
+        if not result.success:
+            raise HTTPException(status_code=404, detail="Beat generation request not found")
+
+        beat_request = result.data
+        if not beat_request:
+            raise HTTPException(status_code=404, detail="Beat generation request not found")
+
+        return BeatGenerationResponse(
+            id=beat_request.id,
+            project_id=beat_request.project_id,
+            user_id=beat_request.user_id,
+            prompt=beat_request.prompt,
+            provider=beat_request.provider,
+            model_name=beat_request.model_name,
+            duration=beat_request.duration,
+            tempo=beat_request.tempo,
+            time_signature=beat_request.time_signature,
+            style_tags=beat_request.style_tags,
+            status=beat_request.status,
+            progress=beat_request.progress,
+            current_stage=beat_request.current_stage,
+            generated_audio_path=beat_request.generated_audio_path,
+            generated_midi_path=beat_request.generated_midi_path,
+            quality_score=beat_request.quality_score,
+            processing_time=beat_request.processing_time,
+            provider_metadata=beat_request.provider_metadata,
+            error_message=beat_request.error_message,
+            created_at=beat_request.created_at,
+            started_at=beat_request.started_at,
+            completed_at=beat_request.completed_at
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get beat generation status: {str(e)}")
+
+
+@router.post("/beats/{request_id}/add-to-project", response_model=BeatToProjectResponse)
+async def add_beat_to_project(
+    request_id: uuid.UUID,
+    request: BeatToProjectRequest
+):
+    """Add generated beat as clip to project track"""
+    try:
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...database.connection import get_session
+        from ...services.project_integration_service import ProjectIntegrationService
+
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        # Get beat generation request
+        beat_result = await repo.get_beat_generation_request(request_id)
+        if not beat_result.success or not beat_result.data:
+            raise HTTPException(status_code=404, detail="Beat generation request not found")
+
+        beat_request = beat_result.data
+
+        # Check if generation is complete
+        if beat_request.status != "completed" or not beat_request.generated_audio_path:
+            raise HTTPException(
+                status_code=400,
+                detail="Beat generation not completed or no audio file available"
+            )
+
+        # Add beat to project
+        integration_service = ProjectIntegrationService()
+        result = await integration_service.add_beat_to_track(
+            beat_request.generated_audio_path,
+            request.track_id,
+            request.timeline_position,
+            request.clip_name or f"Beat - {beat_request.prompt[:30]}"
+        )
+
+        if result.success:
+            return BeatToProjectResponse(
+                success=True,
+                clip_id=result.data.get("clip_id"),
+                message="Beat added to project successfully"
+            )
+        else:
+            return BeatToProjectResponse(
+                success=False,
+                message=result.error
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add beat to project: {str(e)}")
+
+
+@router.get("/beats/templates", response_model=List[BeatTemplateResponse])
+async def get_beat_templates(
+    category: Optional[str] = Query(None, description="Filter by category"),
+    search: Optional[str] = Query(None, description="Search in template names and tags")
+):
+    """Get available beat templates"""
+    try:
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...database.connection import get_session
+
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        # Parse search tags
+        search_tags = None
+        if search:
+            search_tags = [tag.strip() for tag in search.lower().split(",")]
+
+        result = await repo.get_beat_templates(
+            category=category,
+            is_public=True,
+            search_tags=search_tags
+        )
+
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.error)
+
+        templates = result.data
+        template_responses = []
+
+        for template in templates:
+            template_responses.append(BeatTemplateResponse(
+                id=template.id,
+                name=template.name,
+                description=template.description,
+                category=template.category,
+                tags=template.tags,
+                default_tempo=template.default_tempo,
+                time_signature=template.time_signature,
+                duration=template.duration,
+                provider_config=template.provider_config,
+                prompt_template=template.prompt_template,
+                is_public=template.is_public,
+                usage_count=template.usage_count,
+                average_quality=template.average_quality,
+                created_by_user_id=template.created_by_user_id,
+                created_at=template.created_at,
+                updated_at=template.updated_at
+            ))
+
+        return template_responses
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get beat templates: {str(e)}")
+
+
+@router.get("/beats/{request_id}/variations", response_model=List[BeatVariationResponse])
+async def get_beat_variations(request_id: uuid.UUID):
+    """Get all variations for a beat generation request"""
+    try:
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...database.connection import get_session
+
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        result = await repo.get_request_variations(request_id)
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.error)
+
+        variations = result.data
+        variation_responses = []
+
+        for variation in variations:
+            variation_responses.append(BeatVariationResponse(
+                id=variation.id,
+                beat_generation_request_id=variation.beat_generation_request_id,
+                variation_index=variation.variation_index,
+                name=variation.name,
+                audio_path=variation.audio_path,
+                midi_path=variation.midi_path,
+                quality_score=variation.quality_score,
+                user_rating=variation.user_rating,
+                generation_seed=variation.generation_seed,
+                generation_metadata=variation.generation_metadata,
+                is_selected=variation.is_selected,
+                used_in_project=variation.used_in_project,
+                created_at=variation.created_at
+            ))
+
+        return variation_responses
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get beat variations: {str(e)}")
+
+
+@router.post("/beats/variations/{variation_id}/select", response_model=dict)
+async def select_beat_variation(variation_id: uuid.UUID):
+    """Mark a variation as selected"""
+    try:
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...database.connection import get_session
+
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        result = await repo.select_variation(variation_id)
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.error)
+
+        return {
+            "success": True,
+            "message": "Variation selected successfully",
+            "variation_id": str(variation_id)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to select variation: {str(e)}")
+
+
+@router.get("/beats/providers", response_model=dict)
+async def get_beat_providers():
+    """Get available beat generation providers and their capabilities"""
+    try:
+        from ...core.config import get_settings
+        from ...services.beat_generation_service import BeatGenerationService
+
+        settings = get_settings()
+        beat_config = settings.get_beat_generation_config()
+        service = BeatGenerationService()
+
+        providers = {
+            "musicgen": {
+                "name": "MusicGen",
+                "description": "Local AI beat generation using Meta's MusicGen models",
+                "local": True,
+                "available": True,  # TODO: Check actual availability
+                "models": service.get_supported_models("musicgen"),
+                "max_duration": beat_config["musicgen"]["max_duration"] if "musicgen" in beat_config else 30.0,
+                "capabilities": ["tempo_sync", "style_conditioning", "prompt_based"]
+            },
+            "soundraw": {
+                "name": "SOUNDRAW",
+                "description": "Cloud-based professional beat generation API",
+                "local": False,
+                "available": beat_config["soundraw"]["enabled"],
+                "models": ["soundraw-v1"],  # SOUNDRAW doesn't expose model names
+                "max_duration": beat_config["soundraw"]["max_duration"],
+                "capabilities": ["tempo_sync", "genre_selection", "mood_control", "instrument_selection"]
+            }
+        }
+
+        return {
+            "providers": providers,
+            "default_provider": "musicgen",
+            "global_limits": beat_config["limits"]
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get beat providers: {str(e)}")
+
+
+# Helper functions for beat generation endpoints
+
+async def _process_beat_generation(
+    request_id: uuid.UUID,
+    provider: str,
+    connection_id: Optional[str] = None
+):
+    """Background task for beat generation processing"""
+    try:
+        from ...services.beat_generation_service import BeatGenerationService
+        from ...database.repositories.beat_generation_repository import BeatGenerationRepository
+        from ...database.connection import get_session
+        from ...api.websocket import manager
+
+        session = get_session()
+        repo = BeatGenerationRepository(session)
+
+        # Get request details
+        request_result = await repo.get_beat_generation_request(request_id)
+        if not request_result.success:
+            return
+
+        beat_request = request_result.data
+
+        # Initialize service
+        service = BeatGenerationService()
+
+        # Set progress callback for WebSocket updates
+        if connection_id:
+            def progress_callback(progress: float, stage: str):
+                asyncio.create_task(manager.send_beat_generation_progress(
+                    connection_id,
+                    BeatGenerationProgressEvent(
+                        request_id=request_id,
+                        status="processing",
+                        progress=Decimal(str(progress * 100)),
+                        current_stage=stage
+                    )
+                ))
+
+            service.set_progress_callback(progress_callback)
+
+        # Update status to processing
+        await repo.update_beat_generation_request(
+            request_id,
+            BeatGenerationUpdate(status="processing", current_stage="Loading model")
+        )
+
+        # Load model
+        load_result = await service.load_model(provider, beat_request.model_name)
+        if not load_result.success:
+            await repo.update_beat_generation_request(
+                request_id,
+                BeatGenerationUpdate(status="failed", error_message=load_result.error)
+            )
+            return
+
+        # Generate beat
+        generation_result = await service.generate_beat(
+            prompt=beat_request.prompt,
+            duration=float(beat_request.duration),
+            tempo=float(beat_request.tempo),
+            time_signature=beat_request.time_signature,
+            style_tags=beat_request.style_tags,
+            project_id=beat_request.project_id
+        )
+
+        if generation_result.success:
+            # Save generated audio
+            from ...core.config import get_settings
+            settings = get_settings()
+
+            audio_filename = f"beat_{request_id}.wav"
+            audio_path = f"{settings.BEATS_PATH}/{audio_filename}"
+
+            # TODO: Save audio array to file
+            # audio_array = generation_result.data
+            # await AudioFileManager.save_audio(audio_array, audio_path)
+
+            # Update request with results
+            await repo.update_beat_generation_request(
+                request_id,
+                BeatGenerationUpdate(
+                    status="completed",
+                    progress=Decimal("100.0"),
+                    generated_audio_path=audio_path,
+                    quality_score=generation_result.metadata.get("quality_score"),
+                    processing_time=generation_result.metadata.get("processing_time_ms", 0) / 1000,
+                    provider_metadata=generation_result.metadata
+                )
+            )
+
+        else:
+            # Update with error
+            await repo.update_beat_generation_request(
+                request_id,
+                BeatGenerationUpdate(
+                    status="failed",
+                    error_message=generation_result.error
+                )
+            )
+
+        # Clean up service
+        await service.cleanup()
+
+    except Exception as e:
+        # Log error and update request status
+        from ...core.logging import audio_logger
+        audio_logger.log_processing_error(
+            operation="BeatGenerationBackground",
+            error=str(e),
+            request_id=str(request_id)
+        )
+
+
+def _estimate_generation_duration(provider: str, beat_duration: float) -> int:
+    """Estimate generation duration in seconds"""
+
+    if provider == "musicgen":
+        # MusicGen typically takes 1-3x real-time depending on model and hardware
+        base_time = beat_duration * 2  # 2x real-time average
+        return int(base_time + 30)  # Add 30s for model loading
+
+    elif provider == "soundraw":
+        # SOUNDRAW API typically takes 30-60 seconds regardless of length
+        return 60
+
+    else:
+        return 120  # Default estimate
